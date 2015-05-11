@@ -705,6 +705,91 @@ class checks:
                     except Exception:
                         self.mainLogger.debug('Process already terminated')
 
+        elif sys.platform.find('freebsd') != -1:
+            self.mainLogger.debug('getIOStats: freebsd')
+
+            proc1 = None
+            proc2 = None
+            proc3 = None
+            proc4 = None
+            try:
+                try:
+                    proc1 = subprocess.Popen(
+                        ["iostat", "-d", "ada0"],
+                        stdout=subprocess.PIPE,
+                        close_fds=True)
+                    proc2 = subprocess.Popen(
+                        ["tail", "-1"],
+                        stdin=proc1.stdout,
+                        stdout=subprocess.PIPE,
+                        close_fds=True)
+                    proc1.stdout.close()
+                    proc3 = subprocess.Popen(
+                        ["awk", '\"{ print $1,$2,int($3) }\"'],
+                        stdin=proc2.stdout,
+                        stdout=subprocess.PIPE,
+                        close_fds=True)
+                    proc2.stdout.close()
+                    proc4 = subprocess.Popen(
+                        ["sed", r's/  */:/g'],
+                        stdin=proc3.stdout,
+                        stdout=subprocess.PIPE,
+                        close_fds=True)
+                    proc3.stdout.close()
+
+                    stats = proc4.communicate()[0]
+
+                    stats = stats.split(':')
+
+                    ioStats = {
+                        'ada0': {
+                            'KBt': stats[1],  # kilobytes per transfer
+                            'tps': stats[2],  # transfers per second
+                            'MBs': stats[3]   # megabytes per second
+                        }
+                    }
+
+                    if int(pythonVersion[1]) >= 6:
+                        try:
+                            # Given that the commands are linked, if one is
+                            # terminated, we can assume the others are also
+                            # terminated.
+                            if proc1 is not None:
+                                proc1.kill()
+                            if proc2 is not None:
+                                proc2.kill()
+                            if proc3 is not None:
+                                proc3.kill()
+                            if proc4 is not None:
+                                proc4.kill()
+                        except Exception:
+                            self.mainLogger.debug('Process already terminated')
+
+                except OSError:
+                    # we don't have iostats installed just return false
+                    return False
+
+                except Exception:
+                    import traceback
+                    self.mainLogger.error('getIOStats: exception = %s', traceback.format_exc())
+                    return False
+            finally:
+                if int(pythonVersion[1]) >= 6:
+                    try:
+                        # Given that the commands are linked, if one is
+                        # terminated, we can assume the others are also
+                        # terminated.
+                        if proc1 is not None:
+                            proc1.kill()
+                        if proc2 is not None:
+                            proc2.kill()
+                        if proc3 is not None:
+                            proc3.kill()
+                        if proc4 is not None:
+                            proc4.kill()
+                    except Exception:
+                        self.mainLogger.debug('Process already terminated')
+
         else:
             self.mainLogger.debug('getIOStats: unsupported platform')
             return False
