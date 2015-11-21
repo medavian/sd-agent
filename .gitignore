@@ -1,4 +1,2 @@
-/.gitignore
-/sd-agent.iml
 *.pyc
 *.idea
